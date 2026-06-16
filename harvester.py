@@ -9,7 +9,7 @@ import os
 import re
 import urllib.parse
 from bs4 import BeautifulSoup
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from pydantic import BaseModel, Field
 from typing import Optional, List, Tuple
 
@@ -29,7 +29,7 @@ class HarvesterRecord(BaseModel):
     confidence_score: float
 
 class DeepDomainHarvester:
-    def __init__(self, topic: str, max_records: int = 20000, max_concurrent: int = 20):
+    def __init__(self, topic: str, max_records: int = 20000, max_concurrent: int = 20, keywords: List[str] = None):
         self.topic = topic
         self.max_records = max_records
         self.max_concurrent = max_concurrent
@@ -44,8 +44,12 @@ class DeepDomainHarvester:
         self.fieldnames = list(HarvesterRecord.model_fields.keys())
         
         # Topical keywords for link filtering
-        self.keywords = ["prediction", "world cup", "2026", "win", "odds", "fifa", "soccer", "football", "match"]
-        
+        if keywords:
+            self.keywords = [k.strip() for k in keywords if k.strip()]
+        else:
+            # Simple fallback: split topic into words
+            self.keywords = [word for word in self.topic.split() if len(word) > 2]
+            
         self.queue = asyncio.Queue()
         
         # Initialize CSV with headers
@@ -65,13 +69,13 @@ class DeepDomainHarvester:
             print(f"[!] DuckDuckGo Search failed: {e}")
             
         # Always append robust fallback URLs to ensure starting points
-        print(f"[*] Adding fallback seed URLs...")
+        print(f"[*] Adding fallback seed URLs for topic: {query}...")
+        
+        # Generate dynamic Wikipedia search URL based on the topic
+        encoded_query = urllib.parse.quote(query)
         fallbacks = [
-            "https://en.wikipedia.org/wiki/2026_FIFA_World_Cup",
-            "https://www.sportingnews.com/us/soccer/news/fifa-world-cup-2026-odds-predictions-favorites/m9vq8t2xz2d71h2xj1f6i9a",
-            "https://www.goal.com/en-us/lists/world-cup-2026-power-rankings/bltaf9c0e5a8f9c1b7f",
-            "https://www.foxsports.com/soccer/2026-fifa-world-cup",
-            "https://www.espn.com/soccer/"
+            f"https://en.wikipedia.org/w/index.php?search={encoded_query}&title=Special:Search&profile=advanced&fulltext=1&ns0=1",
+            f"https://github.com/search?q={encoded_query}&type=repositories"
         ]
         urls.extend(fallbacks)
         return list(set(urls))
@@ -242,12 +246,16 @@ if __name__ == "__main__":
     parser.add_argument("--test", action="store_true", help="Run in test mode (max 50 records)")
     parser.add_argument("--local", type=str, help="Path to local file fetched by agent")
     parser.add_argument("--url", type=str, help="Original URL for the local file")
+    parser.add_argument("--topic", type=str, default="FIFA World Cup 2026 win predictions", help="The topic to harvest data for")
+    parser.add_argument("--keywords", type=str, help="Comma-separated keywords for link filtering (e.g. 'win,odds,football')")
     args = parser.parse_args()
     
-    topic = "FIFA World Cup 2026 win predictions"
+    topic = args.topic
     max_rec = 50 if args.test else 20000
     
-    harvester = DeepDomainHarvester(topic, max_records=max_rec)
+    kw_list = args.keywords.split(",") if args.keywords else None
+    
+    harvester = DeepDomainHarvester(topic, max_records=max_rec, keywords=kw_list)
     
     if args.local and args.url:
         asyncio.run(harvester.process_local_file(args.local, args.url))
