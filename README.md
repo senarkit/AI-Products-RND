@@ -58,3 +58,25 @@ python harvester.py --topic "Quantum computing advancements" --test
 3. **Link Discovery**: All absolute and relative `<a href>` links are extracted. If a link matches your keywords, it gets added to the back of the queue.
 4. **Validation & Output**: If the extracted text has a high enough confidence score (based on keyword density), it is saved as a `HarvesterRecord` directly to the CSV in `Output/`.
 5. **Termination**: The worker pool gracefully shuts down the moment the 20,000 record limit is reached.
+
+## Data Schema
+
+All extracted data is stored in CSV format with the following columns. When you provide a topic, the crawler attempts to populate each row with the most relevant information from a single webpage.
+
+| Column Name | Description |
+| :--- | :--- |
+| **parent_topic** | The core topic or search query that initiated the crawl (e.g., `"space expeditions"`). |
+| **source_url** | The absolute URL of the page where the data was extracted. |
+| **page_title** | The HTML `<title>` of the webpage. |
+| **publisher_or_author** | Extracted from the `<meta name="author">` tag, if available. Defaults to `"Unknown Publisher"`. |
+| **language** | Language code of the content. Currently defaults to `"en"`. |
+| **extracted_at** | UTC ISO-8601 timestamp representing the exact moment the page was crawled. |
+| **data_format** | The format of the extracted data. Currently defaults to `"text_paragraph"`. |
+| **information_category** | A broad categorization of the data. Currently hardcoded to `"win_predictions"` (can be modified in `harvester.py`). |
+| **extracted_content** | The primary text content extracted from the page. It concatenates the most substantial `<p>` tags and is truncated to a maximum of 1,500 characters. |
+| **has_media** | Boolean (`True`/`False`) indicating whether the page contains embedded images (`<img>`) or video (`<video>`) elements. |
+| **http_status** | The HTTP response status code (e.g., `200` for a successful fetch). |
+| **confidence_score** | A score between `0.5` and `1.0` representing how well the page text matches your topical keywords. Pages with higher keyword density receive a higher score. Pages scoring below `0.6` are discarded to ensure high data quality.
+
+### Expected Data Quality
+For any given topic, the expected output is a highly-focused collection of text snippets representing the core substance of web pages matching your query. Because the crawler actively filters out pages with low keyword relevance and ensures a minimum confidence score, the resulting dataset will heavily skew toward dense, informative paragraphs directly related to your target topic rather than generic navigation text or off-topic articles.
